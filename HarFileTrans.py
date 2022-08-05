@@ -19,10 +19,6 @@ location = 'C:/Users/DELL/Desktop/'
 status_code = os.system('har2case C:/Users/DELL/Desktop/test11.har')
 print(status_code)
 
-
-
-
-
 res = requests.get(url='https://www.bilibili.com/video/BV1m44y1u7bs/?spm_id_from=autoNext&vd_source=4a43fa8ae01ef716b6388654f580b256', headers=BiliDownloadHeaders)
 print(res)
 html = res.text

@@ -1,9 +1,15 @@
+from tkinter import N
 import requests
 import re
 from bs4 import BeautifulSoup
 import json
-#注意cookie时不时更换一下，不然会失效。
+import os
 
+
+#注意cookie时不时更换一下，不然会失效。
+#os.system 每调用一次命令就打开一个子进程, 不会影响父进程, 调用完则关闭, 因此连续的一系列命令需要一起调用 
+#os.system 调用第三方工具是从System32文件夹调用, 若报错命令不存在则可尝试将第三方工具复制到该文件夹内
+#ffmpeg参数: -y遇到同名文件强制覆盖(-n则相反), -loglevel quiet可设置让其不返回信息
 
 BiliUniHeaders = {
 'authority':'www.bilibili.com',
@@ -47,11 +53,9 @@ def Status(status_code:str)->bool:
     return False
 
 
-
 class BiliVideo(object):
     model = 'https://www.bilibili.com/video/'
     UniHeaders = BiliUniHeaders
-    
     StatusModeStr = re.compile('2..')
     
     def __init__(self, bvid: str, BiliHeaders: dict= BiliUniHeaders):
@@ -62,7 +66,7 @@ class BiliVideo(object):
         self.html = GetHtml(self.url, self.Headers)
         if re.search(BiliVideo.StatusModeStr, str(requests.get(self.url, headers=BiliUniHeaders).status_code)) == None:
             print('Illigal bvid.')
-            exit()    
+            return None   
         
         #Video id (and mid of the author)
         self.bvid = bvid
@@ -98,7 +102,6 @@ class BiliVideo(object):
         #Mdict['comment'] = soup.find(name='div', id ='comment')
         return Mdict
 
-    
     #Download the video
     def DownloadLink(self, quality: int=0): #if quality == 1, you will get high_quality videolink
         TemplateURL = 'https://api.bilibili.com/x/player/playurl?avid={AID}&cid={CID}&qn=1&type=&otype=json&platform=html5&high_quality={Bool}'
@@ -115,9 +118,10 @@ class BiliVideo(object):
         print('{name}.mp4 Down.'.format(name= self.title), end=' ')
         return 0
     
-    #该代码仅获取视频文件，音频文件是分开存储的
-    def DetailedLink(self, AutoQuality: str='360p'):
-        html = requests.get(url=self.url, headers=self.Headers).text
+    #获取指定清晰度的视频音频原始URL
+    #设定的tail参数是为了下载多p视频而准备的, 普通视频默认无tail
+    def DetailedLink(self, AutoQuality: str='360p', tail = ''):
+        html = requests.get(url=self.url + tail, headers=self.Headers).text
         #Ctrl+F搜索以获悉不同清晰度的播放链接位置。这些信息是以json格式存储的。分析结构得到结果
         modestr = re.compile('window.__playinfo__=(.*?)</script>')
         jsonFile = re.search(modestr, html).group(1)
@@ -148,38 +152,112 @@ class BiliVideo(object):
         #print(index)
         #print(VideoList[index]['id'])
         #print(VideoList[index]['baseUrl'])
-        
         Tempdict= {'video':VideoList[index]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
         return Tempdict
         pass    
-    #可分清晰度的下载
+    #可分清晰度的下载 (仅下载纯视频或音频, 音频仅下载最高清晰度的)
     def DetailedVideoDownload(self, Quality:str ='360p', location= 'C:/Users/DELL/Desktop/'):
         DownloadURL = self.DetailedLink(Quality)['video']
         Video = requests.get(DownloadURL, headers=BiliDownloadHeaders).content
+        print('Downloading')
         with open(location + self.title + Quality +'.mp4', 'wb') as f:
             f.write(Video)
         print('{name}.mp4 Down.'.format(name= self.title + Quality))
         pass
-    def AudioDownload(self, location= 'C:/Users/DELL/Desktop/'):
+    def DetailedAudioDownload(self, location= 'C:/Users/DELL/Desktop/'):
         DownloadURL = self.DetailedLink()['audio']
         Audio = requests.get(DownloadURL, headers=BiliDownloadHeaders).content
         with open(location + self.title +'.mp3', 'wb') as f:
             f.write(Audio)
         print('{name}.mp3 Down.'.format(name= self.title))
         pass
+    #音视频下载并合并
+    def MergeOutput(self, Quality = '360p', path = 'C:/Users/DELL/Desktop/'):
+        Link = self.DetailedLink(Quality)
+        if Link == None: #检测获取链接的函数结果是否有误
+            return
+        VideoURL = Link['video']
+        AudioURL = Link['audio']
+        Video = requests.get(VideoURL, headers= BiliDownloadHeaders).content
+        Audio = requests.get(AudioURL, headers= BiliDownloadHeaders).content
+        print('Downloading video: BVid=%s'%self.bvid)
+        videoname = path + self.title + Quality +'_video.mp4'
+        audioname = path + self.title + '_audio.mp3'
+        with open(videoname, 'wb') as f:
+            f.write(Video)
+        with open(audioname, 'wb') as f:
+            f.write(Audio)
+        print('OutputPath:', end=' ')
+        print(path+self.title+Quality + '.mp4')
+        #可以设置让ffmpeg命令不返回信息: 使用命令-loglevel quiet, -y参数告知ffmpeg检测到同名文件则强制覆盖
+        os.system('ffmpeg -n -loglevel quiet -i \"{video}\" -i \"{audio}\" -c copy \"{video_out}.mp4\"'.format(video = videoname, audio = audioname, video_out = path+self.title + Quality))
+        #删除纯视频和音频文件
+        os.remove('%s'%videoname)
+        os.remove('%s'%audioname)
+        print('Video:%s.mp4 Merge Over.'%(self.title + Quality))
+        pass
+    
+    #下载多p视频的方法
+    #由于附加了多p检测, 对所有视频都可以使用该方法.
+    def MultipleDown(self, Quality='360p', path= 'C:/Users/DELL/Desktop/'):
+        #防止对普通视频误调用该方法, 只需附加多p检测
+        mode = re.compile('视频选集')
+        if re.search(mode, self.html) == None:
+            #print('This is a Single Video.')
+            self.MergeOutput(Quality, path)
+            return
+        
+        #正则获取该投稿内的视频总数
+        mode = re.compile('>\(\d/(\d)\)</span')
+        Amount = re.search(mode, self.html).group(1)
+        
+        #创建新文件夹
+        path = path + str(self.bvid) + '/'
+        if(not os.path.exists(path)):
+            os.makedirs(path)
+        else: #若目录已存在则说明已经下载过了
+            print('Dir already exist.')
+
+        #循环下载多p视频
+        for i in range(int(Amount)):
+            Link = self.DetailedLink(Quality, tail='?p={index}'.format(index = i+1))#设置tail参数获取其它p的下载地址
+            VideoURL = Link['video']
+            AudioURL = Link['audio']
+            Video = requests.get(VideoURL, headers= BiliDownloadHeaders).content
+            Audio = requests.get(AudioURL, headers= BiliDownloadHeaders).content
+            videoname = path + self.title + Quality +'_video.mp4'
+            audioname = path + self.title + '_audio.mp3'
+            with open(videoname, 'wb') as f:
+                f.write(Video)
+            with open(audioname, 'wb') as f:
+                f.write(Audio)
+            command = 'ffmpeg -n -loglevel quiet -i \"{video}\" -i \"{audio}\" -c copy \"{video_out}.mp4\"'.format(video = videoname, audio = audioname, video_out = path + self.title + Quality + '_p' + str(i+1))
+            os.system(command)
+            os.remove('%s'%videoname)
+            os.remove('%s'%audioname)
+            print('p{index} done.'.format(index = i+1))
+        pass
+    
     pass
     
-#Video.DownloadVideo()
-#Video.DownloadVideo('Video_0.mp4', 0)
 
 class Person(object):
-    def __init__(self) -> None:
+    SpaceURL_mode = 'https://space.bilibili.com/{userID}'
+    def __init__(self, userID):
+        self.userID = userID
+        self.SpaceURL = Person.SpaceURL_mode.format(userID = userID)
+        pass
+    
+    def name(self):
+        pass
+    def headpic(self):
+        pass
+    def VideoList(self):
         pass
 
-"""
-Video = BiliVideo('BV1m44y1u7bs')
-Video.DetailedVideoDownload('480p')
-Video.AudioDownload()
-"""
+#Video = BiliVideo('BV1Kt4y1a78y')
+#Video.MultipleDown()
+
+
 
 

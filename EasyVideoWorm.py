@@ -15,12 +15,9 @@ def Saves(HtmlCode):
 #Saves(res.text)
 
 
-
-
 UniHeaders = {
 'user-agent':'Mozilla/5.0(WindowsNT10.0;Win64;x64)AppleWebKit/537.36(KHTML,likeGecko)Chrome/103.0.0.0Safari/537.36'
 }
-
 
 BiliHeaders = {
 'authority':'www.bilibili.com',
