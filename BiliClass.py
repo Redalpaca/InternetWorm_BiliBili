@@ -51,6 +51,18 @@ def Status(status_code:str)->bool:
     if(res != None):
         return True
     return False
+def Intergrate(bvid, path_in = 'C:/Users/DELL/Desktop/', path_out = 'C:/Users/DELL/Desktop/'):
+    List = os.listdir(path_in + bvid)
+    path_txt = path_in + 'temp.txt'
+    with open(path_txt, 'w') as f:
+        for element in List:
+            f.write('file '+ path_in + bvid + '/' +element + '\n')
+    command = 'ffmpeg -n -f concat -safe 0 -i {path_txt} -c copy \"{path_output}_intergrated.mp4\"'.format(path_txt = path_txt, path_output = path_out + bvid)
+    os.system(command = command)
+    print('Intergrate Over.')
+    #删除临时txt文件
+    os.remove(path_txt)   
+
 
 
 class BiliVideo(object):
@@ -199,8 +211,10 @@ class BiliVideo(object):
     
     #下载多p视频的方法
     #由于附加了多p检测, 对所有视频都可以使用该方法.
-    def MultipleDown(self, Quality='360p', path= 'C:/Users/DELL/Desktop/'):
-        #防止对普通视频误调用该方法, 只需附加多p检测
+    def MultipleDown(self, Quality='360p', path= 'C:/Users/DELL/Desktop/', intergrate = False, begin = 1, end = 1000):
+        path_origin = path
+
+        #防止对普通视频误调用该方法, 附加多p检测
         mode = re.compile('视频选集')
         if re.search(mode, self.html) == None:
             #print('This is a Single Video.')
@@ -208,8 +222,12 @@ class BiliVideo(object):
             return
         
         #正则获取该投稿内的视频总数
-        mode = re.compile('>\(\d/(\d)\)</span')
+        mode = re.compile('>\(\d/(\d+)\)</span')
         Amount = re.search(mode, self.html).group(1)
+        
+        #确定下载范围
+        end = end if int(Amount) > end else int(Amount)
+        begin = begin if end >= begin else 1
         
         #创建新文件夹
         path = path + str(self.bvid) + '/'
@@ -219,25 +237,31 @@ class BiliVideo(object):
             print('Dir already exist.')
 
         #循环下载多p视频
-        for i in range(int(Amount)):
+        for i in range(begin-1, end):
             Link = self.DetailedLink(Quality, tail='?p={index}'.format(index = i+1))#设置tail参数获取其它p的下载地址
             VideoURL = Link['video']
             AudioURL = Link['audio']
             Video = requests.get(VideoURL, headers= BiliDownloadHeaders).content
             Audio = requests.get(AudioURL, headers= BiliDownloadHeaders).content
-            videoname = path + self.title + Quality +'_video.mp4'
-            audioname = path + self.title + '_audio.mp3'
+            videoname = path + self.bvid + Quality +'_video.mp4'
+            audioname = path + self.bvid + '_audio.mp3'
             with open(videoname, 'wb') as f:
                 f.write(Video)
             with open(audioname, 'wb') as f:
                 f.write(Audio)
-            command = 'ffmpeg -n -loglevel quiet -i \"{video}\" -i \"{audio}\" -c copy \"{video_out}.mp4\"'.format(video = videoname, audio = audioname, video_out = path + self.title + Quality + '_p' + str(i+1))
+            #-n参数 默认不进行覆盖
+            command = 'ffmpeg -n -loglevel quiet -i \"{video}\" -i \"{audio}\" -c copy \"{video_out}.mp4\"'.format(video = videoname, audio = audioname, video_out = path + self.bvid + Quality + '_p' + str(i+1))
             os.system(command)
             os.remove('%s'%videoname)
             os.remove('%s'%audioname)
             print('p{index} done.'.format(index = i+1))
         pass
-    
+        
+        #是否需要拼接视频
+        if intergrate :
+            Intergrate(self.bvid, path_origin, path_origin)
+            pass
+        
     pass
     
 
@@ -255,8 +279,21 @@ class Person(object):
     def VideoList(self):
         pass
 
-#Video = BiliVideo('BV1Kt4y1a78y')
-#Video.MultipleDown()
+
+
+
+Video = BiliVideo('BV1gK411K75P')
+Video.MultipleDown(intergrate = True)
+
+
+
+
+
+
+
+
+
+
 
 
 
