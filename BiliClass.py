@@ -145,6 +145,7 @@ class BiliVideo(object):
         ReverseQualityDict = {'120':'4k','112':'1080p+','80':'1080p','64':'720p','32':'480p'}
         
         MaxQuality = VideoList[0]['id']
+        #注意ListLen不一定是清晰度的个数, 有些视频的list比较怪异, 只能一个个找了.
         ListLen = len(VideoList)
         descript = AutoQuality
         #输入清晰度的格式是否正确
@@ -160,9 +161,17 @@ class BiliVideo(object):
             print('HighestQuality: %s'%ReverseQualityDict[str(MaxQuality)])
             return None
 
-        index = ListLen - QualityDict[descript][1]
+        index = 0
+        #index = ListLen - QualityDict[descript][1]
+        for i, element in enumerate(VideoList):
+            if element['id'] == QualityDict[descript][0] :
+                index = i
+        
+        #print(QualityDict[descript][1])
         #print(index)
-        #print(VideoList[index]['id'])
+        #print(index)
+        print('testID = ', end='')
+        print(VideoList[index]['id'])
         #print(VideoList[index]['baseUrl'])
         Tempdict= {'video':VideoList[index]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
         return Tempdict
@@ -282,8 +291,8 @@ class Person(object):
 
 
 
-Video = BiliVideo('BV1gK411K75P')
-Video.MultipleDown(intergrate = True)
+#Video = BiliVideo('BV1J44y1k7EA')
+#Video.MultipleDown(Quality='720p')
 
 
 
