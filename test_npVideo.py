@@ -13,7 +13,6 @@ html = video.html
 mode = re.compile('视频选集')
 if re.search(mode, html) != None:
     pass    
-
 mode = re.compile('>\(\d/(\d)\)</span')
 Amount = re.search(mode, html).group(1)
 

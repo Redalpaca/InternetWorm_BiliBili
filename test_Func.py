@@ -25,8 +25,6 @@ print(bvidList)
 
 ListDownload(BVList=bvidList)
 
-
-
 #test = soup.find(name='div', class_='title-row')
 #print(test)
 #test1 = re.search(re.compile('title-row'), Html)

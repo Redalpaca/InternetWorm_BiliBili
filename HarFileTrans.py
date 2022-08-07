@@ -13,8 +13,6 @@ testurl = testurl.replace(r'\u0026','&')
 #这是从浏览器里摘下来的链接
 testurl1 = "https://upos-sz-estgoss.bilivideo.com/upgcxcode/71/05/715930571/715930571-1-30112.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1659000137&gen=playurlv2&os=upos&oi=243225050&trid=ac64e03595c74374809c9316426e6091u&mid=35671002&platform=pc&upsig=7977a6645bbdde61b684d6a0d5beecf5&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&bvc=vod&nettype=0&orderid=0,1&agrr=1&bw=648879&logo=80000000"
 
-
-
 location = 'C:/Users/DELL/Desktop/'
 status_code = os.system('har2case C:/Users/DELL/Desktop/test11.har')
 print(status_code)

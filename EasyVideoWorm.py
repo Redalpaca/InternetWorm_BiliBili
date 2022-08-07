@@ -86,7 +86,6 @@ aidStr = AID.group(1)
 
 TemplateURL = 'https://api.bilibili.com/x/player/playurl?avid={AID}&cid={CID}&qn=1&type=&otype=json&platform=html5&high_quality=0'
 #把链接尾部改成0可取消下载高清
-
 JumpURL = TemplateURL.format(AID = aidStr, CID = cidStr)
 #print(JumpURL)
 JumpHtml = requests.get(JumpURL, headers={}).text

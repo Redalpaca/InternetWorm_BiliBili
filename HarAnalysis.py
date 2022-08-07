@@ -8,7 +8,6 @@ import requests
 #注意，在开发者工具中保存下来的数据是har文件，需要转化为json文件方便读取
 #在Terminal或cmd中使用命令：har2case test.har -2j (不加-2j默认转换为json) 可在对应目录下得到json文件
 
-
 #读取json文件并将其转换为字典
 with open('C:/Users/DELL/Desktop/test.json', 'r', encoding='utf-8') as f:
     jsonstr = f.read()
