@@ -1,6 +1,3 @@
-from itertools import count
-from multiprocessing.managers import BaseManager
-from xml.dom.minidom import Element
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -42,7 +39,6 @@ BiliApiHeaders = {
     
 }
 
-
 def GetTitle(url, headers= BiliUniHeaders):
     html = requests.get(url, headers).text
     soup = BeautifulSoup(html, 'lxml')
@@ -57,12 +53,14 @@ def GetHtml(url, Headers):
     return html
 def GetContent(url, headers_0):
     return requests.get(url, headers=headers_0).content
+#判断状态码是否有误
 def Status(status_code:str)->bool:
     modeStr = re.compile('2..')
     res = re.search(modeStr, status_code)
     if(res != None):
         return True
     return False
+#传入序列图片文件夹所在的目录与名称, 在指定目录输出gif图片
 def Intergrate(bvid, path_in = 'C:/Users/DELL/Desktop/', path_out = 'C:/Users/DELL/Desktop/'):
     List = os.listdir(path_in + bvid)
     path_txt = path_in + 'temp.txt'
@@ -86,6 +84,7 @@ class BiliVideo(object):
         self.url = BiliVideo.model + bvid
         self.Headers = BiliHeaders
         self.DownloadHeaders = BiliDownloadHeaders
+        self.res = requests.get(self.url, headers= BiliUniHeaders)
         self.html = GetHtml(self.url, self.Headers)
         if re.search(BiliVideo.StatusModeStr, str(requests.get(self.url, headers=BiliUniHeaders).status_code)) == None:
             print('Illigal bvid.')
@@ -98,7 +97,11 @@ class BiliVideo(object):
         self.mid_author = re.search(re.compile(r'mid=(\b\d+\b)'), self.html).group(1)
         
         #Get title
-        self.title = (re.search(re.compile('(.*?)_哔哩哔哩_') ,GetTitle(self.url, self.Headers))).group(1)
+        title = GetTitle(self.url, self.Headers)
+        try:
+            self.title = (re.search(re.compile('(.*?)_') ,title)).group(1)
+        except:
+            self.title = title
         pass
     #Get fundamental message
     def GetAID(self):
@@ -124,6 +127,19 @@ class BiliVideo(object):
         #api: https://api.bilibili.com/x/v2/reply?&jsonp=jsonp&pn=%&type=1&oid={AID}&sort=%
         #Mdict['comment'] = soup.find(name='div', id ='comment')
         return Mdict
+    #子类中的测试方法, 仅bangumi对象可以调用
+    def OrderNum(self):
+        if type(self) != Bangumi:
+            print('This video might not be bangumi.')
+            return False
+        soup = BeautifulSoup(self.res.text, 'lxml')
+        #'<span class="ep-list-progress">6/6</span>'
+        temp = soup.find('span', class_= 'ep-list-progress').string
+        mode = re.compile('(\d+)/(\d+)')
+        index = re.search(mode, temp).group(1)
+        total = re.search(mode, temp).group(2)
+        return [index, total]
+    
     #简易下载
     def DownloadLink(self, quality: int=0): #if quality == 1, you will get high_quality videolink
         #类名检测
@@ -215,6 +231,12 @@ class BiliVideo(object):
         pass
     #音视频下载并合并
     def MergeOutput(self, Quality = '360p', path = 'C:/Users/DELL/Desktop/', AddName = ''):
+        #类名检测, 若是番剧类型则将名称附上序号
+        if type(self) == Bangumi:
+            order = self.OrderNum()[0]
+            print('Order = {order}'.format(order = order))
+            AddName = '_No.' + order
+            
         Link = self.DetailedLink(Quality)
         if Link == None: #检测获取链接的函数结果是否有误
             return
@@ -222,7 +244,7 @@ class BiliVideo(object):
         AudioURL = Link['audio']
         Video = requests.get(VideoURL, headers= BiliDownloadHeaders).content
         Audio = requests.get(AudioURL, headers= BiliDownloadHeaders).content
-        print('Downloading video: BVid=%s'%self.bvid)
+        #print('Downloading video: BVid=%s'%self.bvid)
         videoname = path + self.title + Quality +'_video.mp4'
         audioname = path + self.title + '_audio.mp3'
         with open(videoname, 'wb') as f:
@@ -230,13 +252,13 @@ class BiliVideo(object):
         with open(audioname, 'wb') as f:
             f.write(Audio)
         print('OutputPath:', end=' ')
-        print(path+self.title+Quality + '.mp4')
+        print(path+self.title+Quality + AddName + '.mp4')
         #可以设置让ffmpeg命令不返回信息: 使用命令-loglevel quiet, -y参数告知ffmpeg检测到同名文件则强制覆盖
         os.system('ffmpeg -n -loglevel quiet -i \"{video}\" -i \"{audio}\" -c copy \"{video_out}.mp4\"'.format(video = videoname, audio = audioname, video_out = path + self.title + Quality + AddName))
         #删除纯视频和音频文件
         os.remove('%s'%videoname)
         os.remove('%s'%audioname)
-        print('Video:%s.mp4 Merge Over.'%(self.title + Quality))
+        print('Video:%s.mp4 Merge Over.'%(self.title + Quality + AddName))
         pass
     #下载多p视频的方法
     #由于附加了多p检测, 对所有视频都可以使用该方法.
@@ -285,7 +307,7 @@ class BiliVideo(object):
         if intergrate :
             Intergrate(self.bvid, path_origin, path_origin)
             pass
-        
+    
     pass
 
 
@@ -365,7 +387,7 @@ class Bangumi(BiliVideo):
     #选择下载整个系列的哪一部分内容
     def SerialDownload(self, Quality='360p', path = 'C:/Users/DELL/Desktop/', begin=1, end=1000):
         #创建新文件夹
-        path = path + str(self.ep_id) + '/'
+        path = path + str(self.title) + '/'
         if(not os.path.exists(path)):
             os.makedirs(path)
         else: #若目录已存在则说明已经下载过了
@@ -381,22 +403,9 @@ class Bangumi(BiliVideo):
     pass
 
 
-class Person(object):
-    SpaceURL_mode = 'https://space.bilibili.com/{userID}'
-    def __init__(self, userID):
-        self.userID = userID
-        self.SpaceURL = Person.SpaceURL_mode.format(userID = userID)
-        pass
-    def name(self):
-        pass
-    def headpic(self):
-        pass
-    def VideoList(self):
-        pass
-
-
-#bangumi = Bangumi('ss42185')
-#bangumi.MultipleDown()
+#bangumi = Bangumi('ss36198')
+#print(bangumi.title)
+#bangumi.MergeOutput()
 
 
 
