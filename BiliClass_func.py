@@ -27,12 +27,33 @@ def URLTest(url):
     return True
 
 #导入列表进行批量下载
-def ListDownload(BVList, Location = 'E:/WormDownloadLib/BiliVideo/', VideoQuality = 0):
+def ListDownload(BVList, path = 'E:/WormDownloadLib/BiliVideo/user/', VideoQuality = 0):
+    #创建新文件夹
+    if(not os.path.exists(path)):
+        os.makedirs(path)
+    else: #若目录已存在则说明已经下载过了
+        print(f'Dir:{path} already exist.')
     count = 0
     for BVnum in BVList:
         TempVideoExam = BiliVideo(BVnum)
         title = TempVideoExam.title + '.mp4'
-        TempVideoExam.DownloadVideo(Location + title, quality=VideoQuality)
+        TempVideoExam.DownloadVideo(path + title, quality=VideoQuality)
+        count+=1
+        print('VideoCount:%d'%count)
+    pass
+#导入列表进行批量下载, 但可下载所有清晰度与多p视频
+def DetailedListDownload(BVList, path = 'E:/WormDownloadLib/BiliVideo/user1/', VideoQuality = 0):
+    #创建新文件夹
+    if(not os.path.exists(path)):
+        os.makedirs(path)
+    else: #若目录已存在则说明已经下载过了
+        print(f'Dir:{path} already exist.')
+    count = 0
+    for BVnum in BVList:
+        TempVideo = BiliVideo(BVnum)
+        #title = TempVideo.title + '.mp4'
+        #TempVideoExam.DownloadVideo(path + title, quality=VideoQuality)
+        TempVideo.MultipleDown(path= path)
         count+=1
         print('VideoCount:%d'%count)
     pass
