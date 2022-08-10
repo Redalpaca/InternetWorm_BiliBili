@@ -3,8 +3,11 @@ import re
 from bs4 import BeautifulSoup
 import json
 import os
+from tqdm import tqdm
 
 #注意cookie时不时更换一下，不然会失效。
+#有时候cookie在原视频网址中会失效, 应尝试使用api网页重新获取cookie
+
 #os.system 每调用一次命令就打开一个子进程, 不会影响父进程, 调用完则关闭, 因此连续的一系列命令需要一起调用 
 #os.system 调用第三方工具是从System32文件夹调用, 若报错命令不存在则可尝试将第三方工具复制到该文件夹内
 #ffmpeg参数: -y遇到同名文件强制覆盖(-n则相反), -loglevel quiet可设置让其不返回信息
@@ -12,9 +15,15 @@ import os
 BiliUniHeaders = {
 'authority':'www.bilibili.com',
 'method':'GET',
+#s'path': '/video/BV1NY4y1E7Dd',
 'scheme':'https',
-'cookie':'buvid3=C6FA7D37-BDAB-8A98-F46C-F74DCCD9E1E590619infoc;_uuid=611AEF8F-FA10A-F25E-63B1-7C6851A3E69C92883infoc;buvid4=A0BF7CAD-00E0-291D-0057-8C4CC946B8DF91548-022012618-yPTK2yRnbGG1AbZfVzPX2Q%3D%3D;rpdid=|(kRJkkRmJ~0J\'uYRJumJumJ;fingerprint=163f019b63a8ac7654d7e8634c3127cf;buvid_fp_plain=undefined;buvid_fp=4d18731a5a709bbdb5ce9d474ce68827;SESSDATA=201e1f7f%2C1665046259%2C56fc0%2A41;bili_jct=64787cb69067364c5e44cd1c3dd05938;DedeUserID=35671002;DedeUserID__ckMd5=d69f732e9248e565;sid=86748t3l;CURRENT_BLACKGAP=0;blackside_state=0;i-wanna-go-back=-1;b_ut=5;LIVE_BUVID=AUTO9316494943737456;is-2022-channel=1;nostalgia_conf=-1;PVID=1;hit-dyn-v2=1;bsource=search_baidu;bp_video_offset_35671002=683780023791910900;theme_style=light;innersign=1;CURRENT_FNVAL=4048;b_lsid=FDB9A836_1821F9A3573;b_timer=%7B%22ffp%22%3A%7B%22333.1007.fp.risk_C6FA7D37%22%3A%221820B1D4B31%22%2C%22444.41.fp.risk_C6FA7D37%22%3A%221820B1D7971%22%2C%22333.788.fp.risk_C6FA7D37%22%3A%221821FC361D3%22%2C%22333.337.fp.risk_C6FA7D37%22%3A%221820B1F58D8%22%7D%7D',
+'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+'accept-encoding': 'gzip, deflate, br',
+'accept-language': 'zh,en-GB;q=0.9,en-US;q=0.8,en;q=0.7',
+'cookie':'buvid3=C6FA7D37-BDAB-8A98-F46C-F74DCCD9E1E590619infoc; _uuid=611AEF8F-FA10A-F25E-63B1-7C6851A3E69C92883infoc; buvid4=A0BF7CAD-00E0-291D-0057-8C4CC946B8DF91548-022012618-yPTK2yRnbGG1AbZfVzPX2Q%3D%3D; rpdid=|(kRJkkRmJ~0J\'uYRJumJumJ; buvid_fp_plain=undefined; blackside_state=0; CURRENT_BLACKGAP=0; i-wanna-go-back=-1; b_ut=5; LIVE_BUVID=AUTO9316494943737456; is-2022-channel=1; nostalgia_conf=-1; hit-dyn-v2=1; go_old_video=-1; theme_style=light; bsource=search_baidu; fingerprint3=b91abfafa0dabad6a036f1b9b0f4c5f3; fingerprint=e5690504a7252e22c88daa209cce9049; CURRENT_FNVAL=4048; b_lsid=B49FD875_182861848B2; b_timer=%7B%22ffp%22%3A%7B%22333.788.fp.risk_C6FA7D37%22%3A%221828618A9AA%22%2C%22333.1193.fp.risk_C6FA7D37%22%3A%221828189D702%22%2C%22333.999.fp.risk_C6FA7D37%22%3A%2218286187503%22%2C%22888.2421.fp.risk_C6FA7D37%22%3A%221828193B951%22%2C%22666.25.fp.risk_C6FA7D37%22%3A%22182859DCF3D%22%2C%22333.976.fp.risk_C6FA7D37%22%3A%2218272FE2BEE%22%2C%22444.41.fp.risk_C6FA7D37%22%3A%221827BA2EEE0%22%2C%22333.937.fp.risk_C6FA7D37%22%3A%22182731D8041%22%2C%22333.337.fp.risk_C6FA7D37%22%3A%221828596C0EF%22%2C%22777.5.0.0.fp.risk_C6FA7D37%22%3A%221828193925D%22%2C%22666.19.fp.risk_C6FA7D37%22%3A%2218276C82C19%22%2C%22333.967.fp.risk_C6FA7D37%22%3A%22182818AB45E%22%2C%22333.880.fp.risk_C6FA7D37%22%3A%221828193B897%22%2C%22333.42.fp.risk_C6FA7D37%22%3A%22182861C7407%22%7D%7D; SESSDATA=e20c69d7%2C1675659396%2C09715%2A81; bili_jct=54992fbb96d8876b46cc8abb37df1a57; DedeUserID=35671002; DedeUserID__ckMd5=d69f732e9248e565; buvid_fp=e5690504a7252e22c88daa209cce9049; CURRENT_QUALITY=116; bp_video_offset_35671002=692641245482188900; sid=7p2ab96c; PVID=11',
 'referer':'www.bilibili.com',
+'sec-ch-ua-mobile': '?0',
+'sec-fetch-dest': 'document',
 'sec-ch-ua-platform':'"Windows"',
 'sec-fetch-dest':'document',
 'sec-fetch-mode':'navigate',
@@ -24,7 +33,7 @@ BiliUniHeaders = {
 'user-agent':'Mozilla/5.0(WindowsNT10.0;Win64;x64)AppleWebKit/537.36(KHTML,likeGecko)Chrome/103.0.0.0Safari/537.36'
 }
 BiliDownloadHeaders = {
-'referer':'https://www.bilibili.com/video/BV1m44y1u7bs',
+'referer':'https://www.bilibili.com/',
 'user-agent':'Mozilla/5.0(WindowsNT10.0;Win64;x64)AppleWebKit/537.36(KHTML,likeGecko)Chrome/103.0.0.0Safari/537.36'
 }
 BiliApiHeaders = {
@@ -32,11 +41,10 @@ BiliApiHeaders = {
     'method':'GET',
     'scheme':'https',
     'path':'/pgc/season/episode/web/info?ep_id=374680',
-    'cookie':'buvid3=C6FA7D37-BDAB-8A98-F46C-F74DCCD9E1E590619infoc; _uuid=611AEF8F-FA10A-F25E-63B1-7C6851A3E69C92883infoc; buvid4=A0BF7CAD-00E0-291D-0057-8C4CC946B8DF91548-022012618-yPTK2yRnbGG1AbZfVzPX2Q%3D%3D; rpdid=|(kRJkkRmJ~0J\'uYRJumJumJ; fingerprint=163f019b63a8ac7654d7e8634c3127cf; buvid_fp_plain=undefined; buvid_fp=4d18731a5a709bbdb5ce9d474ce68827; SESSDATA=201e1f7f%2C1665046259%2C56fc0%2A41; bili_jct=64787cb69067364c5e44cd1c3dd05938; DedeUserID=35671002; DedeUserID__ckMd5=d69f732e9248e565; sid=86748t3l; CURRENT_BLACKGAP=0; blackside_state=0; i-wanna-go-back=-1; b_ut=5; LIVE_BUVID=AUTO9316494943737456; is-2022-channel=1; nostalgia_conf=-1; hit-dyn-v2=1; go_old_video=-1; CURRENT_FNVAL=4048; CURRENT_QUALITY=120; bsource=search_baidu; bp_video_offset_35671002=691280144785997800; b_lsid=CBD22374_1827669CDBD; PVID=2; b_timer=%7B%22ffp%22%3A%7B%22333.788.fp.risk_C6FA7D37%22%3A%2218272FEB16C%22%2C%22333.1193.fp.risk_C6FA7D37%22%3A%221827676EE21%22%2C%22333.999.fp.risk_C6FA7D37%22%3A%221827676EBCC%22%2C%22888.2421.fp.risk_C6FA7D37%22%3A%221826EA1E547%22%2C%22666.25.fp.risk_C6FA7D37%22%3A%221827674CE10%22%2C%22333.976.fp.risk_C6FA7D37%22%3A%2218272FE2BEE%22%2C%22444.41.fp.risk_C6FA7D37%22%3A%2218272FE6D5D%22%2C%22333.937.fp.risk_C6FA7D37%22%3A%22182731D8041%22%2C%22333.337.fp.risk_C6FA7D37%22%3A%221827676F357%22%7D%7D',
+    'cookie':'buvid3=C6FA7D37-BDAB-8A98-F46C-F74DCCD9E1E590619infoc; _uuid=611AEF8F-FA10A-F25E-63B1-7C6851A3E69C92883infoc; buvid4=A0BF7CAD-00E0-291D-0057-8C4CC946B8DF91548-022012618-yPTK2yRnbGG1AbZfVzPX2Q%3D%3D; rpdid=|(kRJkkRmJ~0J\'uYRJumJumJ; fingerprint=163f019b63a8ac7654d7e8634c3127cf; buvid_fp_plain=undefined; buvid_fp=4d18731a5a709bbdb5ce9d474ce68827; SESSDATA=201e1f7f%2C1665046259%2C56fc0%2A41; bili_jct=64787cb69067364c5e44cd1c3dd05938; DedeUserID=35671002; DedeUserID__ckMd5=d69f732e9248e565; sid=86748t3l; CURRENT_BLACKGAP=0; blackside_state=0; i-wanna-go-back=-1; b_ut=5; LIVE_BUVID=AUTO9316494943737456; is-2022-channel=1; nostalgia_conf=-1; hit-dyn-v2=1; go_old_video=-1; CURRENT_QUALITY=120; bsource=search_baidu; CURRENT_FNVAL=4048; bp_video_offset_35671002=691888544094879700; b_lsid=754D10442_1827BBDB3BF; PVID=2; b_timer=%7B%22ffp%22%3A%7B%22333.788.fp.risk_C6FA7D37%22%3A%221827BA2FD18%22%2C%22333.1193.fp.risk_C6FA7D37%22%3A%221827BDB67F0%22%2C%22333.999.fp.risk_C6FA7D37%22%3A%221827BCDAD31%22%2C%22888.2421.fp.risk_C6FA7D37%22%3A%221827BD6F803%22%2C%22666.25.fp.risk_C6FA7D37%22%3A%2218277746742%22%2C%22333.976.fp.risk_C6FA7D37%22%3A%2218272FE2BEE%22%2C%22444.41.fp.risk_C6FA7D37%22%3A%221827BA2EEE0%22%2C%22333.937.fp.risk_C6FA7D37%22%3A%22182731D8041%22%2C%22333.337.fp.risk_C6FA7D37%22%3A%2218276CD0604%22%2C%22777.5.0.0.fp.risk_C6FA7D37%22%3A%221827BCE5652%22%2C%22666.19.fp.risk_C6FA7D37%22%3A%2218276C82C19%22%7D%7D',
     #'referer':'www.bilibili.com/play/ep374676',
     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
     'user-agent':'Mozilla/5.0(WindowsNT10.0;Win64;x64)AppleWebKit/537.36(KHTML,likeGecko)Chrome/103.0.0.0Safari/537.36'
-    
 }
 
 def GetTitle(url, headers= BiliUniHeaders):
@@ -72,6 +80,33 @@ def Intergrate(bvid, path_in = 'C:/Users/DELL/Desktop/', path_out = 'C:/Users/DE
     print('Intergrate Over.')
     #删除临时txt文件
     os.remove(path_txt)   
+#传入链接与地址进行下载, 支持进度条显示
+def Download_Pbar(url, path = 'C:/Users/DELL/Desktop/test1.mp4', headers = BiliDownloadHeaders):
+    try:
+        ResHeaders = requests.get(url, headers= headers, stream= True).headers
+        file_size = int(ResHeaders['Content-Length'])
+    except:
+        print('ERROR: Unsuccessful to obtain the content.(Perhaps the url is overdue.)')
+        file_size = 0
+    #创建进度条类
+    pbar = tqdm(
+        total= file_size, initial= 0,
+        unit= 'B', unit_scale= True, leave= True)
+    #stream元素设定当访问content元素时才获取输入流
+    res = requests.get(url, headers= headers, stream= True)
+    with open(path, 'wb') as f:
+        #使用迭代器模式获取content, 以1024Bytes为单位读取并写入本地
+        for chunk in res.iter_content(chunk_size=1024):
+            if chunk:
+                f.write(chunk)
+                pbar.update(1024)#更新进度条
+    pbar.close()
+    return file_size
+#cookie更新函数
+def Cookie(apiURL):
+    cookie = ''
+    url = 'https://api.bilibili.com/x/player/v2?aid=643507695&cid=778294645'
+    return cookie
 
 
 class BiliVideo(object):
@@ -169,40 +204,44 @@ class BiliVideo(object):
     
     #获取指定清晰度的视频音频原始URL
     #设定的tail参数是为了下载多p视频而准备的, 普通视频默认无tail
-    def DetailedLink(self, AutoQuality: str='360p', tail = ''):
-        html = requests.get(url=self.url + tail, headers=self.Headers).text
+    def DetailedLink(self, Quality: str='360p', tail = ''):
+        html = requests.get(url=self.url + tail, headers= BiliUniHeaders).text
         #Ctrl+F搜索以获悉不同清晰度的播放链接位置。这些信息是以json格式存储的。分析结构得到结果
         modestr = re.compile('window.__playinfo__=(.*?)</script>')
         jsonFile = re.search(modestr, html).group(1)
         dict_0 = json.loads(jsonFile)
+
         VideoList = dict_0['data']['dash']['video']
         AudioList = dict_0['data']['dash']['audio']
         
-        QualityDict = {"4k":[120,6], "1080p+":[112,5], "1080p":[80,4], "720p":[64,3], "480p":[32,2], "360p":[16,1]}
-        ReverseQualityDict = {'120':'4k','112':'1080p+','80':'1080p','64':'720p','32':'480p'}
+        QualityDict = {"4k":[120,6], "1080p+":[116,5], "1080p":[80,4], "720p":[64,3], "480p":[32,2], "360p":[16,1]}
+        ReverseQualityDict = {'120':'4k','116':'1080p+','112':'1080p+','80':'1080p','64':'720p','32':'480p'}
+        
         
         MaxQuality = VideoList[0]['id']
+        print(MaxQuality)
         #注意ListLen不一定是清晰度的个数, 有些视频的list比较怪异, 是三个为一组的, 还是采用复杂度o(n)的线性查找吧, 反正表也不大.
         ListLen = len(VideoList)
-        descript = AutoQuality
+        descript = Quality
         #输入清晰度的格式是否正确
         try:
             QualityDict[descript]
-        except:
+        except KeyError :
             print('\"%s\" has illigal format.'%descript)
             print('LegalFormat: [4k,1080p+,1080p,720p,480p,360p]')
-            return None
+            return {'video':VideoList[0]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
         #该清晰度是否允许下载
         if(QualityDict[descript][0] > MaxQuality):
             print('The VideoQuality is too high.(Or the Cookie is Overdue)')
             print('HighestQuality: %s'%ReverseQualityDict[str(MaxQuality)])
-            return None
+            return {'video':VideoList[0]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
 
         index = 0
         #index = ListLen - QualityDict[descript][1]
         for i, element in enumerate(VideoList):
             if element['id'] == QualityDict[descript][0] :
                 index = i
+                break
         
         #print(QualityDict[descript][1])
         #print(index)
@@ -230,29 +269,38 @@ class BiliVideo(object):
         print('{name}.mp3 Down.'.format(name= self.title))
         pass
     #音视频下载并合并
-    def MergeOutput(self, Quality = '360p', path = 'C:/Users/DELL/Desktop/', AddName = ''):
+    def MergeOutput(self, Quality = '360p', path = 'C:/Users/DELL/Desktop/', AddName = '', pbar = False):
         #类名检测, 若是番剧类型则将名称附上序号
+        """
         if type(self) == Bangumi:
             order = self.OrderNum()[0]
             print('Order = {order}'.format(order = order))
             AddName = '_No.' + order
-            
+        """
         Link = self.DetailedLink(Quality)
         if Link == None: #检测获取链接的函数结果是否有误
             return
         VideoURL = Link['video']
         AudioURL = Link['audio']
-        Video = requests.get(VideoURL, headers= BiliDownloadHeaders).content
-        Audio = requests.get(AudioURL, headers= BiliDownloadHeaders).content
-        #print('Downloading video: BVid=%s'%self.bvid)
         videoname = path + self.title + Quality +'_video.mp4'
         audioname = path + self.title + '_audio.mp3'
-        with open(videoname, 'wb') as f:
-            f.write(Video)
-        with open(audioname, 'wb') as f:
-            f.write(Audio)
-        print('OutputPath:', end=' ')
-        print(path+self.title+Quality + AddName + '.mp4')
+        
+        #是否启用进度条?
+        if pbar == True:
+            print('Downloading video:')
+            Download_Pbar(VideoURL, path = videoname)
+            print('Downloading audio:')
+            Download_Pbar(AudioURL, path = audioname)
+            pass
+        else:
+            Video = requests.get(VideoURL, headers= BiliDownloadHeaders).content
+            Audio = requests.get(AudioURL, headers= BiliDownloadHeaders).content
+            with open(videoname, 'wb') as f:
+                f.write(Video)
+            with open(audioname, 'wb') as f:
+                f.write(Audio)
+        
+        print(f'OutputPath: {path}')
         #可以设置让ffmpeg命令不返回信息: 使用命令-loglevel quiet, -y参数告知ffmpeg检测到同名文件则强制覆盖
         os.system('ffmpeg -n -loglevel quiet -i \"{video}\" -i \"{audio}\" -c copy \"{video_out}.mp4\"'.format(video = videoname, audio = audioname, video_out = path + self.title + Quality + AddName))
         #删除纯视频和音频文件
@@ -262,7 +310,7 @@ class BiliVideo(object):
         pass
     #下载多p视频的方法
     #由于附加了多p检测, 对所有视频都可以使用该方法.
-    def MultipleDown(self, Quality='360p', path= 'C:/Users/DELL/Desktop/', intergrate = False, begin = 1, end = 1000):
+    def MultipleDown(self, Quality='360p', path= 'C:/Users/DELL/Desktop/', intergrate = False, begin = 1, end = 1000, pbar = False):
         path_origin = path
         #防止对普通视频误调用该方法, 附加多p检测
         mode = re.compile('视频选集')
@@ -273,7 +321,7 @@ class BiliVideo(object):
         #正则获取该投稿内的视频总数
         mode = re.compile('>\(\d/(\d+)\)</span')
         Amount = re.search(mode, self.html).group(1)
-        #确定下载范围
+        #确定下载范围, 防止越界
         end = end if int(Amount) > end else int(Amount)
         begin = begin if end >= begin else 1
         #创建新文件夹
@@ -285,17 +333,28 @@ class BiliVideo(object):
         #循环下载多p视频
         for i in range(begin-1, end):
             Link = self.DetailedLink(Quality, tail='?p={index}'.format(index = i+1))#设置tail参数获取其它p的下载地址
+            #获取url与名称
             VideoURL = Link['video']
             AudioURL = Link['audio']
-            Video = requests.get(VideoURL, headers= BiliDownloadHeaders).content
-            Audio = requests.get(AudioURL, headers= BiliDownloadHeaders).content
             videoname = path + self.bvid + Quality +'_video.mp4'
-            audioname = path + self.bvid + '_audio.mp3'
-            with open(videoname, 'wb') as f:
-                f.write(Video)
-            with open(audioname, 'wb') as f:
-                f.write(Audio)
-            #-n参数 默认不进行覆盖
+            audioname = path + self.bvid + Quality +'_audio.mp3'
+            #是否启用进度条?
+            if pbar == True:
+                print('Downloading video:')
+                Download_Pbar(VideoURL, path = videoname)
+                print('Downloading audio:')
+                Download_Pbar(AudioURL, path = audioname)
+                pass
+            else:    
+                Video = requests.get(VideoURL, headers= BiliDownloadHeaders).content
+                Audio = requests.get(AudioURL, headers= BiliDownloadHeaders).content
+                with open(videoname, 'wb') as f:
+                    f.write(Video)
+                with open(audioname, 'wb') as f:
+                    f.write(Audio)
+                
+            
+            #-n参数 默认不进行强制覆盖
             command = 'ffmpeg -n -loglevel quiet -i \"{video}\" -i \"{audio}\" -c copy \"{video_out}.mp4\"'.format(video = videoname, audio = audioname, video_out = path + self.bvid + Quality + '_p' + str(i+1))
             os.system(command)
             os.remove('%s'%videoname)
@@ -329,8 +388,15 @@ class Bangumi(BiliVideo):
         self.html = self.res.text
         title = GetTitle(self.url, headers=self.Headers)
         self.title = re.search(re.compile('(.*?)-'), title).group(1)
-        mode = re.compile('ep_id":(\d+)')
-        self.ep_id = re.search(mode, self.res.text).group(1)
+        
+        mode = 'play/ep(\d+)' 
+        temp = re.search(mode, self.res.text)
+        if temp != None:
+            self.ep_id = temp.group(1)
+        else:
+            mode = 'u002Fep(\d+)'
+            #mode = '.{10}374668.{10}'
+            self.ep_id = re.search(mode, self.res.text)
         
         #防出错
         self.bvid = ''
@@ -406,6 +472,17 @@ class Bangumi(BiliVideo):
 #bangumi = Bangumi('ss36198')
 #print(bangumi.title)
 #bangumi.MergeOutput()
+
+
+video = BiliVideo('BV1bB4y1k7Mr')
+video.MultipleDown(Quality='360p', pbar= True)
+
+#bangumi = Bangumi('ep469624')
+#bangumi.MergeOutput(Quality='480p', pbar=True)
+#print(bangumi.DetailedLink())
+
+
+
 
 
 
