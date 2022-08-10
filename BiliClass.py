@@ -4,6 +4,8 @@ from bs4 import BeautifulSoup
 import json
 import os
 from tqdm import tqdm
+#重要提醒: 注意在本项目中, 函数或方法的path参数通常都需要在末尾添加'/', 如:'C:/Users/DELL/Desktop/'
+#重要提醒: 支持不同清晰度下载的方法需要ffmpeg第三方工具的支持, 若cmd显示找不到对应的程序, 可尝试将ffmpeg.exe放入system32文件夹中(详见python os.system函数的具体实现方式)
 
 #注意cookie时不时更换一下，不然会失效。
 #有时候cookie在原视频网址中会失效, 应尝试使用api网页重新获取cookie
@@ -214,9 +216,9 @@ class BiliVideo(object):
         VideoList = dict_0['data']['dash']['video']
         AudioList = dict_0['data']['dash']['audio']
         
+        #1080p+有两种代码: 112, 116, 带来一定的困难
         QualityDict = {"4k":[120,6], "1080p+":[116,5], "1080p":[80,4], "720p":[64,3], "480p":[32,2], "360p":[16,1]}
         ReverseQualityDict = {'120':'4k','116':'1080p+','112':'1080p+','80':'1080p','64':'720p','32':'480p'}
-        
         
         MaxQuality = VideoList[0]['id']
         print(MaxQuality)
@@ -230,7 +232,16 @@ class BiliVideo(object):
             print('\"%s\" has illigal format.'%descript)
             print('LegalFormat: [4k,1080p+,1080p,720p,480p,360p]')
             return {'video':VideoList[0]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
-        #该清晰度是否允许下载
+        
+        #清晰度是否过高
+        if MaxQuality == 112: #处理特殊情况: 1080p+的id为112(番剧?)
+            index = 0
+            for i, element in enumerate(VideoList):
+                if element['id'] == 112 :
+                    index = i
+                    break
+            return {'video':VideoList[index]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
+        #正常情况下的处理: 在字典中寻找并比较id值
         if(QualityDict[descript][0] > MaxQuality):
             print('The VideoQuality is too high.(Or the Cookie is Overdue)')
             print('HighestQuality: %s'%ReverseQualityDict[str(MaxQuality)])
@@ -369,7 +380,7 @@ class BiliVideo(object):
     
     pass
 
-
+#目前传参时允许使用seasonID
 class Bangumi(BiliVideo):
     model = 'https://www.bilibili.com/bangumi/play/'
     #另一个示例: 获取链接的apiURL, qn参数是视频质量. 'https://api.bilibili.com/pgc/player/web/playurl?avid=59570290&cid=440840202&qn=120&ep_id=278577'
@@ -377,6 +388,10 @@ class Bangumi(BiliVideo):
     
     #类构造方法覆盖父类BiliVideo
     def __init__(self, bangumiID: str):
+        """_summary_
+        Args:
+            bangumiID (str): please give the epid or seasonID of the bangumi(eg. ep21788, ss688)
+        """
         #基本信息
         self.url = Bangumi.model + bangumiID
         self.id = bangumiID
@@ -388,15 +403,11 @@ class Bangumi(BiliVideo):
         self.html = self.res.text
         title = GetTitle(self.url, headers=self.Headers)
         self.title = re.search(re.compile('(.*?)-'), title).group(1)
-        
-        mode = 'play/ep(\d+)' 
+        self.ep_id = ''
+        mode = 'ep_id":(\d+),'
         temp = re.search(mode, self.res.text)
         if temp != None:
             self.ep_id = temp.group(1)
-        else:
-            mode = 'u002Fep(\d+)'
-            #mode = '.{10}374668.{10}'
-            self.ep_id = re.search(mode, self.res.text)
         
         #防出错
         self.bvid = ''
@@ -452,6 +463,12 @@ class Bangumi(BiliVideo):
         return idList
     #选择下载整个系列的哪一部分内容
     def SerialDownload(self, Quality='360p', path = 'C:/Users/DELL/Desktop/', begin=1, end=1000):
+        """_summary_
+        Args:
+            path ATTENTION: Requires '/' at the end of the string
+            begin (int, optional): The first episode user wants to get. Defaults to 1.
+            end (int, optional): The last episode user wants to get. Defaults to 1000.
+        """
         #创建新文件夹
         path = path + str(self.title) + '/'
         if(not os.path.exists(path)):
@@ -474,12 +491,12 @@ class Bangumi(BiliVideo):
 #bangumi.MergeOutput()
 
 
-video = BiliVideo('BV1bB4y1k7Mr')
-video.MultipleDown(Quality='360p', pbar= True)
+#video = BiliVideo('BV1bB4y1k7Mr')
+#video.MultipleDown(Quality='360p', pbar= True)
 
-#bangumi = Bangumi('ep469624')
-#bangumi.MergeOutput(Quality='480p', pbar=True)
-#print(bangumi.DetailedLink())
+#bangumi = Bangumi('ep374668')#ep12508
+#print(bangumi.ep_id)
+#bangumi.MergeOutput(Quality= '1080p+', pbar= True)
 
 
 
