@@ -1,5 +1,4 @@
-from pickle import NONE
-from tokenize import Intnumber
+
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -150,23 +149,18 @@ class BiliVideo(object):
     def GetCID(self):
         print(self.cid)
         return self.cid
+    #获取统计信息
     def TotalInfo(self):
-        Mdict = {'title':'','author':'','play':'','coin':'','favor':'','comment':'','star':'','share':'','danmu':''}
-        Html = GetHtml(self.url, self.Headers)
-        Mdict['title'] = self.title
-        Mdict['author'] = re.search(re.compile('视频作者 (.*?)[,、]'), Html).group(1)
-        Mdict['play'] = re.search(re.compile('视频播放量 (\d+)'), Html).group(1)
-        Mdict['coin'] = re.search(re.compile('投硬币枚数 (\d+)'), Html).group(1)
-        Mdict['favor'] = re.search(re.compile('点赞数 (\d+)'), Html).group(1)
-        Mdict['star'] = re.search(re.compile('收藏人数 (\d+)'), Html).group(1)
-        Mdict['share'] = re.search(re.compile('转发人数 (\d+)'), Html).group(1)
-        Mdict['danmu'] = re.search(re.compile('弹幕量 (\d+)'), Html).group(1)
-        #soup= GetSoup(self.url, self.Headers)
-        #评论是异步加载的, 不嵌在html代码中, 懒得专门再写了. 
-        #如果直接通过api接口拿json的话也可以
-        #api: https://api.bilibili.com/x/v2/reply?&jsonp=jsonp&pn=%&type=1&oid={AID}&sort=%
-        #Mdict['comment'] = soup.find(name='div', id ='comment')
-        return Mdict
+        Html = self.res.text
+        mode = '.{300}23295.{200}'
+        mode = '"owner":{(.*?)}'
+        AuthorInfo = re.search(mode, Html).group(1)
+        mode = '"stat":{(.*?)}'
+        VideoInfo = re.search(mode, Html).group(1)
+        DictStr = '{' +VideoInfo + ',' + AuthorInfo +'}'
+        InfoDict = json.loads(DictStr)
+        return InfoDict
+    #获取标签
     def GetTag(self, detailed = False):
         apiURL_mode = 'https://api.bilibili.com/x/web-interface/view/detail/tag?aid={aid}&cid={cid}'
         apiURL = apiURL_mode.format(aid = self.aid, cid = self.cid)
@@ -242,7 +236,6 @@ class BiliVideo(object):
         index = re.search(mode, temp).group(1)
         total = re.search(mode, temp).group(2)
         return [index, total]
-    
     #简易下载
     def DownloadLink(self, quality: int=0): #if quality == 1, you will get high_quality videolink
         #类名检测
@@ -269,7 +262,6 @@ class BiliVideo(object):
             f.write(video)
         print('{name}.mp4 Down.'.format(name= self.title), end=' ')
         return True
-    
     #获取指定清晰度的视频音频原始URL
     #设定的tail参数是为了下载多p视频而准备的, 普通视频默认无tail
     def DetailedLink(self, Quality: str='360p', tail = ''):
@@ -556,8 +548,9 @@ class Bangumi(BiliVideo):
 #print(bangumi.title)
 #bangumi.MergeOutput()
 def main():
-    video = BiliVideo('BV1oF411B7NL')
-    video.GetComments()
+    video = BiliVideo('BV1aW41187Qw')
+    print(video.TotalInfo())
+    #video.GetComments()
     #video.MergeOutput(Quality= '1080p+', pbar= True)
     
     pass
