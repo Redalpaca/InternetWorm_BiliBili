@@ -1,3 +1,5 @@
+from pickle import NONE
+from tokenize import Intnumber
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -84,8 +86,11 @@ def Intergrate(bvid, path_in = 'C:/Users/DELL/Desktop/', path_out = 'C:/Users/DE
     os.remove(path_txt)   
 #传入链接与地址进行下载, 支持进度条显示
 def Download_Pbar(url, path = 'C:/Users/DELL/Desktop/test1.mp4', headers = BiliDownloadHeaders):
+    #先获取内容大小
     try:
-        ResHeaders = requests.get(url, headers= headers, stream= True).headers
+        #stream元素设定当访问content元素时才获取输入流
+        res = requests.get(url, headers= headers, stream= True)
+        ResHeaders = res.headers
         file_size = int(ResHeaders['Content-Length'])
     except:
         print('ERROR: Unsuccessful to obtain the content.(Perhaps the url is overdue.)')
@@ -94,8 +99,6 @@ def Download_Pbar(url, path = 'C:/Users/DELL/Desktop/test1.mp4', headers = BiliD
     pbar = tqdm(
         total= file_size, initial= 0,
         unit= 'B', unit_scale= True, leave= True)
-    #stream元素设定当访问content元素时才获取输入流
-    res = requests.get(url, headers= headers, stream= True)
     with open(path, 'wb') as f:
         #使用迭代器模式获取content, 以1024Bytes为单位读取并写入本地
         for chunk in res.iter_content(chunk_size=1024):
@@ -164,6 +167,69 @@ class BiliVideo(object):
         #api: https://api.bilibili.com/x/v2/reply?&jsonp=jsonp&pn=%&type=1&oid={AID}&sort=%
         #Mdict['comment'] = soup.find(name='div', id ='comment')
         return Mdict
+    def GetTag(self, detailed = False):
+        apiURL_mode = 'https://api.bilibili.com/x/web-interface/view/detail/tag?aid={aid}&cid={cid}'
+        apiURL = apiURL_mode.format(aid = self.aid, cid = self.cid)
+        res = requests.get(apiURL, headers= BiliApiHeaders)
+        DetailDict = json.loads(res.text)
+        if detailed :
+            return DetailDict
+        TagList = []
+        for element in DetailDict['data']:
+            temp = {'tag_id':element['tag_id'], 'tag_name':element['tag_name']}
+            TagList.append(temp)
+        return TagList
+    #获取评论
+    def GetComments(self, index = 0):
+        """
+        Arg:
+            mode (str, optional): Allows 'hot', 'new', 'regular' 
+        """
+        mode = 'hot'
+        modeDict = {'regular':1, 'new':2, 'hot':3}
+        try:
+            modeNum = modeDict[mode]
+        except KeyError:
+            print('Illigal mode.')
+            modeNum = 3
+            pass
+        #next参数在热门评论模式(mode=3)下是显示第几页评论(1页20条)
+        apiURL_mode = 'https://api.bilibili.com/x/v2/reply/main?mode={mode}&next={index}&oid={aid}&plat=1&type=1'
+        apiURL = apiURL_mode.format(mode = modeNum, aid = self.aid, index = index)
+        res = requests.get(apiURL, headers= BiliApiHeaders)
+        dict_0 = json.loads(res.text)
+        RepliesList = dict_0['data']['replies']
+        if RepliesList == None:
+            return None
+        FinalList = []
+        print(len(RepliesList))
+        for element in RepliesList:
+            #从单独api无法获取楼中楼所有评论, 进入新的api需要replyID
+            rpid = element['rpid_str']
+            temp = {'userID':element['mid'], 'content':element['content']['message'], 'InnerReplies':None}
+            apiURL_root = 'https://api.bilibili.com/x/v2/reply/reply?oid={aid}&pn=1&ps=10&type=1&root={rpid}'
+            apiURL_root = apiURL_root.format(aid = self.aid, rpid = rpid)
+            if element['replies'] != None:
+                res = requests.get(apiURL_root, headers= BiliApiHeaders)
+                dict_1 = json.loads(res.text)
+                InnerReplies = dict_1['data']['replies']
+
+                SimpleReplyList = []
+                try:
+                    for reply in InnerReplies:
+                        Innertemp = {'userID':reply['mid'], 'content':reply['content']['message']}
+                        SimpleReplyList.append(Innertemp)
+                    temp['InnerReplies'] = SimpleReplyList
+                except TypeError:
+                    pass
+            FinalList.append(temp)
+            pass
+
+        #print(len(RepliesList[0]['replies']))
+        #for key, value in RepliesList[0].items():
+        #    print(key, value, end='\n\n')
+        return FinalList
+        pass
     #子类中的测试方法, 仅bangumi对象可以调用
     def OrderNum(self):
         if type(self) != Bangumi:
@@ -489,14 +555,17 @@ class Bangumi(BiliVideo):
 #bangumi = Bangumi('ss36198')
 #print(bangumi.title)
 #bangumi.MergeOutput()
+def main():
+    video = BiliVideo('BV1oF411B7NL')
+    video.GetComments()
+    #video.MergeOutput(Quality= '1080p+', pbar= True)
+    
+    pass
 
 
-#video = BiliVideo('BV1bB4y1k7Mr')
-#video.MultipleDown(Quality='360p', pbar= True)
-
-#bangumi = Bangumi('ep374668')#ep12508
-#print(bangumi.ep_id)
-#bangumi.MergeOutput(Quality= '1080p+', pbar= True)
+if __name__ == '__main__':
+    main()
+    
 
 
 
