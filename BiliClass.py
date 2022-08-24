@@ -1,4 +1,3 @@
-
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -173,11 +172,21 @@ class BiliVideo(object):
             temp = {'tag_id':element['tag_id'], 'tag_name':element['tag_name']}
             TagList.append(temp)
         return TagList
+    #获取视频封面
+    def GetFace(self, path = 'C:/Users/DELL/Desktop/'):
+        '<meta data-vue-meta="true" itemprop="image" content="http://i0.hdslb.com/bfs/archive/9da93ef03a89a4384c03cca9189d61c964ebf20b.jpg">'
+        soup = BeautifulSoup(self.html, 'lxml')
+        node = soup.find('meta',attrs={'itemprop':"image"})
+        url = node.attrs['content']
+        Download_Pbar(url, path= path + self.title + '_封面.jpg')
+        return True
+        pass
     #获取评论
     def GetComments(self, index = 0):
         """
         Arg:
-            mode (str, optional): Allows 'hot', 'new', 'regular' 
+            mode (str, optional): Allows 'hot', 'new', 'regular', defaults to 'hot' 
+            index (int, optional): Index refers to page of comment. A single page only shows 20 comments. 
         """
         mode = 'hot'
         modeDict = {'regular':1, 'new':2, 'hot':3}
@@ -262,9 +271,13 @@ class BiliVideo(object):
             f.write(video)
         print('{name}.mp4 Down.'.format(name= self.title), end=' ')
         return True
-    #获取指定清晰度的视频音频原始URL
+    #原始版本: 获取指定清晰度的视频音频原始URL
+    """ 
+    ! Attention !
+    原DetailedLink方法获取的视频链接会定时失效, 需要对获取的链接更换域名
+    """
     #设定的tail参数是为了下载多p视频而准备的, 普通视频默认无tail
-    def DetailedLink(self, Quality: str='360p', tail = ''):
+    def DetailedLink_old(self, Quality: str='360p', tail = ''):
         html = requests.get(url=self.url + tail, headers= BiliUniHeaders).text
         #Ctrl+F搜索以获悉不同清晰度的播放链接位置。这些信息是以json格式存储的。分析结构得到结果
         modestr = re.compile('window.__playinfo__=(.*?)</script>')
@@ -319,6 +332,73 @@ class BiliVideo(object):
         print(VideoList[index]['id'])
         #print(VideoList[index]['baseUrl'])
         Tempdict= {'video':VideoList[index]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
+        return Tempdict
+        pass    
+    #获取指定清晰度的视频音频原始URL的方法, 打了补丁
+    #若失效, 尝试其他域名: upos-sz-mirrorali 
+    def DetailedLink(self, Quality: str='360p', tail = ''):
+        html = requests.get(url=self.url + tail, headers= BiliUniHeaders).text
+        #Ctrl+F搜索以获悉不同清晰度的播放链接位置。这些信息是以json格式存储的。分析结构得到结果
+        modestr = re.compile('window.__playinfo__=(.*?)</script>')
+        jsonFile = re.search(modestr, html).group(1)
+        dict_0 = json.loads(jsonFile)
+
+        VideoList = dict_0['data']['dash']['video']
+        AudioList = dict_0['data']['dash']['audio']
+        
+        #1080p+有两种代码: 112, 116, 带来一定的困难
+        QualityDict = {"4k":[120,6], "1080p+":[116,5], "1080p":[80,4], "720p":[64,3], "480p":[32,2], "360p":[16,1]}
+        ReverseQualityDict = {'120':'4k','116':'1080p+','112':'1080p+','80':'1080p','64':'720p','32':'480p'}
+        
+        MaxQuality = VideoList[0]['id']
+        print(MaxQuality)
+        #注意ListLen不一定是清晰度的个数, 有些视频的list比较怪异, 是三个为一组的, 还是采用复杂度o(n)的线性查找吧, 反正表也不大.
+        ListLen = len(VideoList)
+        descript = Quality
+        #输入清晰度的格式是否正确
+        try:
+            QualityDict[descript]
+        except KeyError :
+            print('\"%s\" has illigal format.'%descript)
+            print('LegalFormat: [4k,1080p+,1080p,720p,480p,360p]')
+            return {'video':VideoList[0]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
+        
+        #清晰度是否过高
+        if MaxQuality == 112: #处理特殊情况: 1080p+的id为112(番剧?)
+            index = 0
+            for i, element in enumerate(VideoList):
+                if element['id'] == 112 :
+                    index = i
+                    break
+            return {'video':VideoList[index]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
+        #正常情况下的处理: 在字典中寻找并比较id值
+        if(QualityDict[descript][0] > MaxQuality):
+            print('The VideoQuality is too high.(Or the Cookie is Overdue)')
+            print('HighestQuality: %s'%ReverseQualityDict[str(MaxQuality)])
+            return {'video':VideoList[0]['baseUrl'], 'audio':AudioList[0]['baseUrl']}
+
+        index = 0
+        #index = ListLen - QualityDict[descript][1]
+        for i, element in enumerate(VideoList):
+            if element['id'] == QualityDict[descript][0] :
+                index = i
+                break
+        VideoUrl:str = VideoList[index]['baseUrl']
+        AudioUrl:str = AudioList[0]['baseUrl']
+        
+        #测试用代码, 观察清晰度选择是否出现问题
+        print('testID = ', end='')
+        print(VideoList[index]['id'])
+        
+        
+        
+        #补丁部分, 修改获取的临时url的域名
+        modestr = re.compile('https://(.*?).bilivideo.com') 
+        substr = re.search(modestr, VideoUrl).group(1)
+        VideoUrl = VideoUrl.replace(substr, 'upos-sz-mirrorhwo1')
+        
+        #print(VideoList[index]['baseUrl'])
+        Tempdict= {'video':VideoUrl, 'audio':AudioUrl}
         return Tempdict
         pass    
     #可分清晰度的下载 (仅下载纯视频或音频, 音频仅下载最高清晰度的)
@@ -548,10 +628,17 @@ class Bangumi(BiliVideo):
 #print(bangumi.title)
 #bangumi.MergeOutput()
 def main():
-    video = BiliVideo('BV1aW41187Qw')
-    print(video.TotalInfo())
-    #video.GetComments()
-    #video.MergeOutput(Quality= '1080p+', pbar= True)
+    #上方这个url在经过一段时间后会自动失效, 这是从html代码中获取的 (即DetailedLink方法获取的)
+    #将域名cn-hbwh-fx-bcache-11.bilivideo.com替换为upos-sz-mirrorhwo1.bilivideo.com, 可以解决这个问题
+    url = 'https://cn-hbwh-fx-bcache-11.bilivideo.com/upgcxcode/31/69/493596931/493596931-1-30080.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1661357632&gen=playurlv2&os=bcache&oi=1939639009&trid=0000cd360b509dc64a8692d926fd25ce02c6p&mid=35671002&platform=pc&upsig=7b28cebb5311a53c4b7af38aa904987c&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&cdnid=3881&bvc=vod&nettype=0&orderid=0,3&agrr=0&bw=243430&logo=80000000'
+    url = 'https://upos-sz-mirrorhwo1.bilivideo.com/upgcxcode/31/69/493596931/493596931-1-30080.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1661357632&gen=playurlv2&os=bcache&oi=1939639009&trid=0000cd360b509dc64a8692d926fd25ce02c6p&mid=35671002&platform=pc&upsig=7b28cebb5311a53c4b7af38aa904987c&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&cdnid=3881&bvc=vod&nettype=0&orderid=0,3&agrr=0&bw=243430&logo=80000000'
+    
+    url = 'https://upos-sz-mirrorhwo1.bilivideo.com/upgcxcode/31/69/493596931/493596931_hr1-1-30125.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1661358637&gen=playurlv2&os=bcache&oi=1939639009&trid=00008f3acc7a1a3d48f289c9c3f07c68fc78p&mid=35671002&platform=pc&upsig=6f60652ec77c6ae6117f5706d1dd05ba&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&cdnid=3875&bvc=vod&nettype=0&orderid=0,2&agrr=0&bw=691604&logo=80000000' 
+    Download_Pbar(url=url, path='C:/Users/DELL/Desktop/test5.mp4')
+    
+    bangumi = Bangumi('ep451884')
+    #bangumi.MergeOutput(pbar= True, Quality= '1080p')
+    #print(bangumi.DetailedLink_1(Quality= '1080p+'))
     
     pass
 
