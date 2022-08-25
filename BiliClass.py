@@ -111,7 +111,7 @@ def Cookie(apiURL):
     url = 'https://api.bilibili.com/x/player/v2?aid=643507695&cid=778294645'
     return cookie
 
-
+#Bilivideo类, 传入bvid即可自动构造video实例
 class BiliVideo(object):
     model = 'https://www.bilibili.com/video/'
     UniHeaders = BiliUniHeaders
@@ -549,8 +549,8 @@ class Bangumi(BiliVideo):
         
         #防出错
         self.bvid = ''
-        self.aid = ''
-        self.cid = ''
+        self.aid = re.search(re.compile(r'\"aid\":(\b\d+\b)'), self.html).group(1)
+        self.cid = re.search(re.compile(r'\"cid\":(\b\d+\b)'), self.html).group(1)
         pass
     #获取该集在整部剧集中的序号
     def OrderNum(self):
@@ -621,6 +621,29 @@ class Bangumi(BiliVideo):
             temp = Bangumi(id)
             temp.MergeOutput(Quality=Quality, AddName='_%d'%index, path= path)
         pass
+    #下载预览片(片长六分钟)
+    def getPreview(self, Quality = '360p', path = 'C:/Users/DELL/Desktop/'):
+        apiUrl_mode = 'https://api.bilibili.com/pgc/player/web/playurl?avid={aid}&cid={cid}&qn={Quality}&ep_id={epid}'
+        
+        QualityDict = {"4k":[120,6], "1080p+":[116,5], "1080p":[80,4], "720p":[64,3], "480p":[32,2], "360p":[16,1]}
+        qnCode = QualityDict[Quality][0]
+        
+        apiUrl = apiUrl_mode.format(aid = self.aid, cid = self.cid, Quality = qnCode, epid = self.ep_id)
+        res = requests.get(apiUrl, headers= {})
+        print(res)
+        json_ = res.text
+        dict_0 = json.loads(json_)
+        DownUrl = dict_0['result']['durl'][0]['backup_url'][0]
+        
+        path = path + self.title + '.mp4'
+        Download_Pbar(DownUrl, path= path, headers= self.DownHeaders)
+        #print(dict_0['result']['durl'])
+        
+        
+        
+        pass
+    
+    
     pass
 
 
@@ -634,9 +657,10 @@ def main():
     url = 'https://upos-sz-mirrorhwo1.bilivideo.com/upgcxcode/31/69/493596931/493596931-1-30080.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1661357632&gen=playurlv2&os=bcache&oi=1939639009&trid=0000cd360b509dc64a8692d926fd25ce02c6p&mid=35671002&platform=pc&upsig=7b28cebb5311a53c4b7af38aa904987c&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&cdnid=3881&bvc=vod&nettype=0&orderid=0,3&agrr=0&bw=243430&logo=80000000'
     
     url = 'https://upos-sz-mirrorhwo1.bilivideo.com/upgcxcode/31/69/493596931/493596931_hr1-1-30125.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1661358637&gen=playurlv2&os=bcache&oi=1939639009&trid=00008f3acc7a1a3d48f289c9c3f07c68fc78p&mid=35671002&platform=pc&upsig=6f60652ec77c6ae6117f5706d1dd05ba&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&cdnid=3875&bvc=vod&nettype=0&orderid=0,2&agrr=0&bw=691604&logo=80000000' 
-    Download_Pbar(url=url, path='C:/Users/DELL/Desktop/test5.mp4')
+    #Download_Pbar(url=url, path='C:/Users/DELL/Desktop/test5.mp4')
     
     bangumi = Bangumi('ep451884')
+    print(bangumi.cid)
     #bangumi.MergeOutput(pbar= True, Quality= '1080p')
     #print(bangumi.DetailedLink_1(Quality= '1080p+'))
     
